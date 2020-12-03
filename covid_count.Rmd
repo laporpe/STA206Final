@@ -1,0 +1,144 @@
+---
+title: "covid_case_by_county"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+# covid cumulative case count (Y)
+```{r}
+us.counties <- read.csv("C:/Users/echel/Desktop/us-counties.txt")
+us.counties["id"] <- paste(us.counties$county,us.counties$state, sep="_")
+
+length(unique(us.counties$id))
+```
+
+```{r}
+nov23count <- us.counties[which(us.counties$date == "2020-11-23"),]           # extract data on nov 23th
+nov23count <- nov23count[order(nov23count$fips),]                                   # order by county
+length(unique(nov23count$id))                                               # calculate how many data points are left...
+```
+
+
+```{r}
+nov23count <- nov23count[nov23count$county != "Unknown",]           # some counties are unknown so I removed them...
+length(unique(nov23count$id))
+# note that 3 counties are missing fips number
+Y <- nov23count[,2:6]
+```
+
+
+# covid mask use
+
+```{r}
+mask_use <- read.csv("C:/Users/echel/Desktop/mask-use-by-county.txt")
+colnames(mask_use) <- c("fips",   "NEVER",      "RARELY",     "SOMETIMES",  "FREQUENTLY", "ALWAYS")
+mask_use["mask_score"] <- mask_use$NEVER*0 + mask_use$RARELY*1 + mask_use$SOMETIMES*2 + mask_use$FREQUENTLY*3 + mask_use$ALWAYS*4
+X1 <- mask_use[,c(1,7)]
+length(unique(mask_use$fips))
+```
+
+```{r}
+full_data <- merge(Y, X1, by = "fips", all.x = TRUE, all.y = TRUE)     # Keep all rows of both data frames
+```
+
+
+# health data
+```{r}
+health2019 <- read.csv("C:/Users/echel/Desktop/analytic_data2019.csv")
+```
+
+```{r}
+# these are the data we want to use...
+v1=which(colnames(health2019)=="Ratio.of.population.to.primary.care.providers.other.than.physicians." )     # Population to Primary Care Physicians ratio
+v2=which(colnames(health2019)=="Unemployment.raw.value" )     # 
+v3=which(colnames(health2019)=="High.school.graduation.raw.value" )
+v4=which(colnames(health2019)=="Flu.vaccinations.raw.value" )
+v5=which(colnames(health2019)=="Uninsured.raw.value" )
+v6=which(colnames(health2019)=="Median.household.income.raw.value" )
+
+v7=which(colnames(health2019)=="Population.raw.value" )
+v8=which(colnames(health2019)=="X..Rural.raw.value" )
+v9=which(colnames(health2019)=="Life.expectancy.raw.value" )
+
+```
+
+```{r}
+# calculate diversity index
+# pull out race proportions
+q=which(colnames(health2019)=="X..Non.Hispanic.African.American.raw.value" )
+w=which(colnames(health2019)=="X..American.Indian.and.Alaskan.Native.raw.value" )
+e=which(colnames(health2019)=="X..Asian.raw.value" )
+r=which(colnames(health2019)=="X..Native.Hawaiian.Other.Pacific.Islander.raw.value" )
+t=which(colnames(health2019)=="X..Hispanic.raw.value" )
+y=which(colnames(health2019)=="X..Non.Hispanic.white.raw.value" )
+race_index <- c(q,w,e,r,t,y)
+
+race_data <- health2019[3:nrow(health2019),race_index] # 3rd column is the fips number for each county, 1st row is not data, 2nd row is nation-wide values
+race_data[] <- lapply(race_data, as.numeric)
+race_data["sim_diversity_index"] <- 1 - race_data[,1]^2 - race_data[,2]^2 - race_data[,3]^2 - race_data[,4]^2 - race_data[,5]^2 - race_data[,6]^2
+
+```
+
+
+# clean up var names and such...
+```{r}
+index <- c(v1,v2,v3,v4,v5,v6,v7,v8,v9)
+
+health_data <- health2019[3:nrow(health2019),c(3,index)]     # 3rd column is the fips number for each county, 1st row is not data, 2nd row is nation-wide values
+
+health_data <- cbind(health_data, race_data[7])
+
+# rename var so more compact...
+colnames(health_data) <- c("fips", "ratio_pop_to_physician", "unemploy_rate", "HS_grad_rate", "flu_vacc_%", "uninsured", "median_income", "pop_size", "%_rural", "life_expectancy", "sim_diversity_index")
+
+# there is an issue with fips code, in health data numbers < 10000 have a 0 in front (ie: 015034)
+health_data[,1] <- as.integer(health_data[,1])
+```
+
+```{r}
+full_data <- merge(full_data, health_data, by = "fips", all.x = TRUE, all.y = TRUE)     # Keep all rows of both data frames
+```
+
+
+# party preferrence
+```{r}
+county_vote_2016 <- read.csv("C:/Users/echel/Desktop/countypres_2000-2016.csv")     # read in data
+
+county_vote_2016 <- county_vote_2016[county_vote_2016$year == 2016,]               # only used 2016 election
+county_vote_2016 <- na.omit(county_vote_2016)                                      # remove na rows
+demo <- county_vote_2016[county_vote_2016$party == "democrat", c(5,9)]             # take democratic votes
+rep <- county_vote_2016[county_vote_2016$party == "republican",c(5,9)]             # take republican votes
+
+county_vote_2016 <- merge(demo,rep, by = "FIPS", all.x = TRUE, all.y = TRUE)      # merge back into dataframe
+
+colnames(county_vote_2016) <- c("fips", "democratic_votes", "republican_votes")
+county_vote_2016[] <- lapply(county_vote_2016, as.integer)
+county_vote_2016["%_democrat"] <- county_vote_2016$democratic_votes / (county_vote_2016$democratic_votes+ county_vote_2016$republican_votes)
+
+```
+
+```{r}
+full_data <- merge(full_data, county_vote_2016[,c(1,4)], by = "fips", all.x = TRUE, all.y = TRUE)     # Keep all rows of both data frames
+```
+
+# remove rows with na....
+```{r}
+full_data_no_na <- na.omit(full_data)
+nrow(full_data_no_na)
+```
+
+##############################################
+
+
+# plot %rural %democrat
+```{r}
+full_data_no_na[,4:ncol(full_data_no_na)] <- lapply(full_data_no_na[,4:ncol(full_data_no_na)], as.numeric)
+plot(full_data_no_na$`%_rural`,full_data_no_na$`%_democrat`)
+cor(full_data_no_na$`%_rural`,full_data_no_na$`%_democrat`)
+```
+
