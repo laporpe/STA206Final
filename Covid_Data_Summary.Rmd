@@ -91,6 +91,8 @@ hist(log(data$cases), breaks = 200)
 log_model = lm(log(cases) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index, data = data)
 summary(log_model)
 plot(log_model)
+
+#conflict
 ```
 
 
