@@ -92,7 +92,7 @@ log_model = lm(log(cases) ~ mask_score + mask_score + ratio_pop_to_physician + u
 summary(log_model)
 plot(log_model)
 
-#conflict
+#conflict 2
 ```
 
 
