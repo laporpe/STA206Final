@@ -9,15 +9,22 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(leaps)
+library(MASS)
+```
+
 # Data Summarizing
 
 
-## 
+## FEawfeaef
+- kjf
+- kj
+*ddkjf*
 ```{r}
 data = read.csv('covid-project-raw-data/full_data_no_na.csv')
 summary(data)
 head(data)
-plot(data)
 ```
 
 
@@ -30,7 +37,7 @@ sapply(data, class)
 
 
 ```{r}
-basic_model = lm(cases ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index, data = data)
+basic_model = lm(cases ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy + pop_density, data = data)
 summary(basic_model)
 library(MASS)
 boxcox(basic_model)
@@ -42,7 +49,7 @@ hist(log(data$cases), breaks = 200)
 
 
 ```{r}
-log_model = lm(log(cases) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index, data = data)
+log_model = lm(log(cases) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy + pop_density, data = data)
 summary(log_model)
 plot(log_model)
 ```
@@ -73,28 +80,34 @@ data["608",]
 ```{r}
 data_norm = data
 data_norm$cases_norm = data_norm$cases/data_norm$pop_size
-norm_model = lm(cases_norm ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income +  X._rural + life_expectancy + sim_diversity_index, data = data_norm)
+norm_model = lm(cases_norm ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income +  X._rural + life_expectancy + sim_diversity_index+ area + X._democrat + sim_diversity_index + life_expectancy + pop_density, data = data_norm)
 
 
 
 summary(norm_model)
-library(MASS)
-boxcox(basic_model)
-plot(basic_model)
-hist(data$cases, breaks = 200)
-hist(log(data$cases), breaks = 200)
+boxcox(norm_model)
+plot(norm_model)
+hist(data_norm$cases_norm, breaks = 200)
+hist(sqrt(data_norm$cases_norm), breaks = 200)
 
 ```
 
 
 ```{r}
-log_model = lm(log(cases) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index, data = data)
-summary(log_model)
-plot(log_model)
+sqrt_norm_model = lm(sqrt(cases_norm) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy + pop_density, data = data_norm)
+summary(sqrt_norm_model)
+plot(sqrt_norm_model)
 
-#conflict 2
 ```
+```{r}
+sub_set = regsubsets(sqrt(cases_norm) ~ (mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy + pop_density)^2, data=data_norm, nvmax=20, nbest=10, method='forward')
+res.sum <- summary(sub_set)
+summary(res.sum,all.best=TRUE,matrix=T,matrix.logical=F,df=NULL)
+max(res.sum$adjr2)
+res.sum$outmat[200,]
 
+#res.sum
+```
 
 
 
