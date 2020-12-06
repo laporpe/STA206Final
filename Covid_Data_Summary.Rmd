@@ -1,0 +1,102 @@
+---
+title: "Covid_Data_Summary"
+author: "Keith Mitchell"
+date: "12/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Summarizing
+
+
+## 
+```{r}
+data = read.csv('covid-project-raw-data/full_data_no_na.csv')
+summary(data)
+head(data)
+plot(data)
+```
+
+
+
+
+
+```{r}
+sapply(data, class)
+```
+
+
+```{r}
+basic_model = lm(cases ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index, data = data)
+summary(basic_model)
+library(MASS)
+boxcox(basic_model)
+plot(basic_model)
+hist(data$cases, breaks = 200)
+hist(log(data$cases), breaks = 200)
+```
+
+
+
+```{r}
+log_model = lm(log(cases) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index, data = data)
+summary(log_model)
+plot(log_model)
+```
+
+
+
+```{r}
+colnames(data)
+for (i in colnames(data)){
+  print(i)
+  print(summary(eval(call('$', data, i))))
+}
+
+```
+
+
+```{r}
+data["203",]
+data["2616",]
+data["608",]
+
+```
+
+
+
+
+
+```{r}
+data_norm = data
+data_norm$cases_norm = data_norm$cases/data_norm$pop_size
+norm_model = lm(cases_norm ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income +  X._rural + life_expectancy + sim_diversity_index, data = data)
+
+
+
+summary(basic_model)
+library(MASS)
+boxcox(basic_model)
+plot(basic_model)
+hist(data$cases, breaks = 200)
+hist(log(data$cases), breaks = 200)
+
+```
+
+
+```{r}
+log_model = lm(log(cases) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index, data = data)
+summary(log_model)
+plot(log_model)
+```
+
+
+
+
+
+
+
+
