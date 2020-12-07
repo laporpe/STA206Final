@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # covid cumulative case count (Y)
 ```{r}
-us.counties <- read.csv("C:/Users/echel/Desktop/us-counties.txt")
+us.counties <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/us-counties.txt")
 us.counties["id"] <- paste(us.counties$county,us.counties$state, sep="_")
 
 length(unique(us.counties$id))
@@ -35,7 +35,7 @@ Y <- nov23count[,2:6]
 # covid mask use
 
 ```{r}
-mask_use <- read.csv("C:/Users/echel/Desktop/mask-use-by-county.txt")
+mask_use <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/mask-use-by-county.txt")
 colnames(mask_use) <- c("fips",   "NEVER",      "RARELY",     "SOMETIMES",  "FREQUENTLY", "ALWAYS")
 mask_use["mask_score"] <- mask_use$NEVER*0 + mask_use$RARELY*1 + mask_use$SOMETIMES*2 + mask_use$FREQUENTLY*3 + mask_use$ALWAYS*4
 X1 <- mask_use[,c(1,7)]
@@ -49,7 +49,7 @@ full_data <- merge(Y, X1, by = "fips", all.x = TRUE, all.y = TRUE)     # Keep al
 
 # health data
 ```{r}
-health2019 <- read.csv("C:/Users/echel/Desktop/analytic_data2019.csv")
+health2019 <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/analytic_data2019.csv")
 ```
 
 ```{r}
@@ -107,7 +107,7 @@ full_data <- merge(full_data, health_data, by = "fips", all.x = TRUE, all.y = TR
 
 # party preferrence
 ```{r}
-county_vote_2016 <- read.csv("C:/Users/echel/Desktop/countypres_2000-2016.csv")     # read in data
+county_vote_2016 <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/countypres_2000-2016.csv")     # read in data
 
 county_vote_2016 <- county_vote_2016[county_vote_2016$year == 2016,]               # only used 2016 election
 county_vote_2016 <- na.omit(county_vote_2016)                                      # remove na rows
@@ -120,16 +120,28 @@ colnames(county_vote_2016) <- c("fips", "democratic_votes", "republican_votes")
 county_vote_2016[] <- lapply(county_vote_2016, as.integer)
 county_vote_2016["%_democrat"] <- county_vote_2016$democratic_votes / (county_vote_2016$democratic_votes+ county_vote_2016$republican_votes)
 
+full_data <- merge(full_data, county_vote_2016[,c(1,4)], by = "fips", all.x = TRUE, all.y = TRUE)    
+
+```
+
+# population density
+```{r}
+popdense <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/census-population-landarea.csv")
+popdense <- na.omit(popdense)
+merged_pop <- popdense[,-c(2:5)]
+colnames(merged_pop) <- c("fips", "area", "pop_density")
+
 ```
 
 ```{r}
-full_data <- merge(full_data, county_vote_2016[,c(1,4)], by = "fips", all.x = TRUE, all.y = TRUE)     # Keep all rows of both data frames
+full_data <- merge(full_data, merged_pop, by = "fips", all.x = TRUE, all.y = TRUE)     # Keep all rows of both data frames
 ```
 
 # remove rows with na....
 ```{r}
 full_data_no_na <- na.omit(full_data)
 nrow(full_data_no_na)
+write.csv(full_data_no_na, file = "full_data_no_na.csv")
 ```
 
 ##############################################
@@ -137,8 +149,8 @@ nrow(full_data_no_na)
 
 # plot %rural %democrat
 ```{r}
-full_data_no_na[,4:ncol(full_data_no_na)] <- lapply(full_data_no_na[,4:ncol(full_data_no_na)], as.numeric)
-plot(full_data_no_na$`%_rural`,full_data_no_na$`%_democrat`)
-cor(full_data_no_na$`%_rural`,full_data_no_na$`%_democrat`)
+#full_data_no_na[,4:ncol(full_data_no_na)] <- lapply(full_data_no_na[,4:ncol(full_data_no_na)], as.numeric)
+#plot(full_data_no_na$`%_rural`,full_data_no_na$`%_democrat`)
+#cor(full_data_no_na$`%_rural`,full_data_no_na$`%_democrat`)
 ```
 
