@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # covid cumulative case count (Y)
 ```{r}
-us.counties <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/us-counties.txt")
+us.counties <- read.csv("covid-project-raw-data/us-counties.txt")
 us.counties["id"] <- paste(us.counties$county,us.counties$state, sep="_")
 
 length(unique(us.counties$id))
@@ -35,7 +35,7 @@ Y <- nov23count[,2:6]
 # covid mask use
 
 ```{r}
-mask_use <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/mask-use-by-county.txt")
+mask_use <- read.csv("covid-project-raw-data/mask-use-by-county.txt")
 colnames(mask_use) <- c("fips",   "NEVER",      "RARELY",     "SOMETIMES",  "FREQUENTLY", "ALWAYS")
 mask_use["mask_score"] <- mask_use$NEVER*0 + mask_use$RARELY*1 + mask_use$SOMETIMES*2 + mask_use$FREQUENTLY*3 + mask_use$ALWAYS*4
 X1 <- mask_use[,c(1,7)]
@@ -49,7 +49,7 @@ full_data <- merge(Y, X1, by = "fips", all.x = TRUE, all.y = TRUE)     # Keep al
 
 # health data
 ```{r}
-health2019 <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/analytic_data2019.csv")
+health2019 <- read.csv("covid-project-raw-data/analytic_data2019.csv")
 ```
 
 ```{r}
@@ -91,10 +91,10 @@ index <- c(v1,v2,v3,v4,v5,v6,v7,v8,v9)
 
 health_data <- health2019[3:nrow(health2019),c(3,index)]     # 3rd column is the fips number for each county, 1st row is not data, 2nd row is nation-wide values
 
-health_data <- cbind(health_data, race_data[7])
+health_data <- cbind(health_data, race_data[1:7])
 
 # rename var so more compact...
-colnames(health_data) <- c("fips", "ratio_pop_to_physician", "unemploy_rate", "HS_grad_rate", "flu_vacc_%", "uninsured", "median_income", "pop_size", "%_rural", "life_expectancy", "sim_diversity_index")
+colnames(health_data) <- c("fips", "ratio_pop_to_physician", "unemploy_rate", "HS_grad_rate", "flu_vacc_%", "uninsured", "median_income", "pop_size", "%_rural", "life_expectancy", "non_hispanic_african_american","american_indian","asian","native_hawaiian","hispanic","non_hispanic_white","sim_diversity_index")
 
 # there is an issue with fips code, in health data numbers < 10000 have a 0 in front (ie: 015034)
 health_data[,1] <- as.integer(health_data[,1])
@@ -107,7 +107,7 @@ full_data <- merge(full_data, health_data, by = "fips", all.x = TRUE, all.y = TR
 
 # party preferrence
 ```{r}
-county_vote_2016 <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/countypres_2000-2016.csv")     # read in data
+county_vote_2016 <- read.csv("covid-project-raw-data/countypres_2000-2016.csv")     # read in data
 
 county_vote_2016 <- county_vote_2016[county_vote_2016$year == 2016,]               # only used 2016 election
 county_vote_2016 <- na.omit(county_vote_2016)                                      # remove na rows
@@ -126,7 +126,7 @@ full_data <- merge(full_data, county_vote_2016[,c(1,4)], by = "fips", all.x = TR
 
 # population density
 ```{r}
-popdense <- read.csv("/Users/maryfrancis/Downloads/covid-project-raw-data/census-population-landarea.csv")
+popdense <- read.csv("covid-project-raw-data/census-population-landarea.csv")
 popdense <- na.omit(popdense)
 merged_pop <- popdense[,-c(2:5)]
 colnames(merged_pop) <- c("fips", "area", "pop_density")
@@ -141,7 +141,9 @@ full_data <- merge(full_data, merged_pop, by = "fips", all.x = TRUE, all.y = TRU
 ```{r}
 full_data_no_na <- na.omit(full_data)
 nrow(full_data_no_na)
-write.csv(full_data_no_na, file = "full_data_no_na.csv")
+write.csv(full_data_no_na, file = "covid-project-raw-data/full_data_no_na.csv")
+
+full_data[which(rowSums(is.na(full_data)) > 0),]
 ```
 
 ##############################################
