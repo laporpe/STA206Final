@@ -1,0 +1,91 @@
+---
+title: "death_from_COVID"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+library(leaps)
+library(MASS)
+```
+
+```{r}
+data <- read.table("full_data_no_na.csv", sep = ",", header = TRUE)
+deaths <- data$deaths
+
+sapply(data, class)
+
+deaths_omit_0 <- data[which(data$deaths != 0),]
+log_death_omit <- log(deaths_omit_0$deaths)
+hist(log_death_omit)
+
+full_model_death_omit <- lm(log_death_omit ~ mask_score + ratio_pop_to_physician + unemploy_rate 
+                 + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size 
+                 + X._rural + life_expectancy + sim_diversity_index + area + X._democrat 
+                 + sim_diversity_index + life_expectancy + pop_density, data = deaths_omit_0)
+summary(full_model_death_omit)
+
+
+#per population size
+deaths_per_pop <- deaths_omit_0$deaths/deaths_omit_0$pop_size
+
+full_model_pop_death_omit <- lm(deaths_per_pop ~ mask_score + ratio_pop_to_physician + unemploy_rate
+                 + HS_grad_rate + flu_vacc_. + uninsured + median_income 
+                 + X._rural + life_expectancy + sim_diversity_index + area + X._democrat
+                 + sim_diversity_index + life_expectancy, data = deaths_omit_0)
+boxcox(full_model_pop_death_omit)
+#need to take the log
+```
+
+```{r}
+log_deaths_pop_omit <- 1/log(1/(deaths_per_pop))
+hist(log_deaths_pop_omit, breaks = 200)
+
+#full model where the number of deaths is divided by the population and zeros are omitted.
+#issue is that taking the log of something (to correct that boxcox) that is between 0 and 1 will lead to negative response variables. 
+full_model_log_pop_death_omit <- lm(log_deaths_pop_omit ~ mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy, data = deaths_omit_0)
+
+boxcox(full_model_log_pop_death_omit)
+summary(full_model_log_pop_death_omit)
+
+anova(full_model_log_pop_death_omit)
+
+#decided on more relevant to do deaths per pop, even though the summary is less good. This model omits those places where there were 0 deaths (consider, not all counties have hospitals where someone in critical care would go to die... ) 
+par(mfrow = c(2,2))
+plot(full_model_log_pop_death_omit)
+```
+
+```{r}
+#reg_subsets
+sum_sub = regsubsets(log_deaths_pop_omit ~ mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy, data = deaths_omit_0,nvmax=20, nbest=10, method='forward')
+
+#not looking like any combinations of these variables are a particularly good predictor of covid death. 
+#potentially a missing componant: death over time
+
+res.sum <- summary(sum_sub)
+summary(res.sum,all.best=TRUE,matrix=T,matrix.logical=F,df=NULL)
+max(res.sum$adjr2)
+
+n = length(log_deaths_pop_omit)
+p.m = as.integer(rownames(res.sum$which))+1#number of coefficients in each model: p
+ssto = sum((log_deaths_pop_omit-mean(log_deaths_pop_omit))^2)
+sse = (1-res.sum$rsq)*ssto
+aic = n*log(sse/n)+2*p.m
+bic = n*log(sse/n)+log(n)*p.m
+res_sub = cbind(sse, res.sum$rsq, res.sum$adjr2,res.sum$cp, bic, aic)
+head(res_sub, n=1)
+```
+
+
+
+```
+
+
+
+
+
