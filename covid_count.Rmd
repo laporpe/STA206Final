@@ -139,11 +139,27 @@ full_data <- merge(full_data, merged_pop, by = "fips", all.x = TRUE, all.y = TRU
 
 # remove rows with na....
 ```{r}
-full_data_no_na <- na.omit(full_data)
+full_data_no_na = na.omit(full_data)
 nrow(full_data_no_na)
+
+full_data
+full_data_no_na
+
+full_data_no_na[which(rowSums(is.na(full_data_no_na)) > 0),]
+
 write.csv(full_data_no_na, file = "covid-project-raw-data/full_data_no_na.csv")
 
-full_data[which(rowSums(is.na(full_data)) > 0),]
+
+```
+
+
+```{r}
+data = read.csv('covid-project-raw-data/full_data_no_na.csv')
+final_data = data[-which(rowSums(is.na(data)) > 0),]
+data
+final_data
+write.csv(final_data, file = "covid-project-raw-data/full_data_no_na.csv")
+
 ```
 
 ##############################################
