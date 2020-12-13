@@ -1,0 +1,82 @@
+---
+title: "code for comparing"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+# fs1 model stats function
+
+get_model_stats <- function(cand_model, full_model, data.t, data.v){
+
+  
+  adj_r2_train <- summary(cand_model)$adj.r.squared
+  
+  
+  n <- nrow(data.t)
+  sse_fs1 <- anova(cand_model)["Residuals", 2]     #SSE
+  mse_fs1 <- anova(cand_model)["Residuals", 3]     #MSE
+  mse_full <- anova(full_model)["Residuals", 3] #MSE  for full model
+  
+  p_fs1 <- length(cand_model$coefficients)          #number of coefficients
+  Cp_fs1 <- sse_fs1/mse_full - (n - 2*p_fs1)
+  
+  aic_fs1 <- n*log(sse_fs1/n) + 2*p_fs1
+  
+  e.fs1=cand_model$residuals                   # residuals
+  h.fs1=influence(cand_model)$hat                 # diagonals of hat matrix
+  press.fs1= sum(e.fs1^2/(1-h.fs1)^2)            # calculate pressP
+  
+  
+  #Get MSPE_v from new data for model 1
+  newdata = data.v[, 1:26]
+  y.hat = predict(cand_model, newdata)
+    
+  MSPE = mean((data.v$cases_adj- y.hat)^2)
+  sse_t = sum(cand_model$residuals^2)
+  
+  output <- c(Cp_fs1, p_fs1, aic_fs1, press.fs1, adj_r2_train, MSPE, sse_t/nrow(data.t), press.fs1/nrow(data.t))
+
+return(output)
+}
+```
+
+```{r}
+a <- get_model_stats(model_AIC_2order_10, model_full_2order, data.t, data.v)
+```
+
+```{r}
+# train models with more variables...
+model_AIC_2order_3 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 3)
+model_AIC_2order_5 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 5)
+model_AIC_2order_7 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 7)
+model_AIC_2order_15 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 15)
+model_AIC_2order_20 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 20)
+model_AIC_2order_25 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 25)
+model_AIC_2order_30 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 30)
+```
+
+
+```{r}
+b <- get_model_stats(model_AIC_2order_15, model_full_2order, data.t, data.v)
+c <- get_model_stats(model_AIC_2order_20, model_full_2order, data.t, data.v)
+d <- get_model_stats(model_AIC_2order_25, model_full_2order, data.t, data.v)
+e <- get_model_stats(model_AIC_2order_30, model_full_2order, data.t, data.v)
+f <- get_model_stats(model_full_2order, model_full_2order, data.t, data.v)
+
+x <- get_model_stats(model_AIC_2order_3, model_full_2order, data.t, data.v)
+y <- get_model_stats(model_AIC_2order_5, model_full_2order, data.t, data.v)
+z <- get_model_stats(model_AIC_2order_7, model_full_2order, data.t, data.v)
+```
+
+```{r}
+compare_models <- rbind(x,y,z,a,b,c,d,e,f)
+rownames(compare_models) <- c("3 var","5 var","7 var","10 var","15 var","20 var","25 var","30 var","full model")
+colnames(compare_models) <- c("Cp", "p", "aic", "pressP", "adj_r2", "MSPE", "sse/n", "pressP/n")
+compare_models
+```
