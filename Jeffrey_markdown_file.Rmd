@@ -1,0 +1,416 @@
+---
+title: "Covid_Data_Analysis"
+author: "Jeffrey Yen"
+date: "12/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Summarizing
+
+
+## read in data
+```{r}
+data = read.csv('covid-project-raw-data\\full_data_no_na.csv')
+library(MASS)   # for stepwise AIC
+
+```
+
+
+## just a simple function to plot 
+```{r}
+get_coor <- function(a,b,data){
+
+  sub_data_set <- data[, c(a,b)]
+  
+  panel.cor <- function(x, y){
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(0, 1, 0, 1))
+    r <- round(cor(x, y, use="complete.obs"), digits=2)
+    txt <- paste0("R = ", r)
+    cex.cor <- 0.8/strwidth(txt)
+    text(0.5, 0.5, txt, cex = cex.cor * r)
+  }
+  
+  return(pairs(sub_data_set, lower.panel = panel.cor))
+}
+
+
+```
+
+```{r}
+get_coor(5,6,data)
+get_coor(5,14, data)
+get_coor(5,8, data)
+get_coor(5,17, data)
+```
+
+## original Y histogram... highly right skewed
+```{r}
+hist(data$cases)
+```
+## histogram after log transformation
+```{r}
+hist(log(data$cases))
+```
+```{r}
+data_omit <- data[which(rowSums(is.na(data)) == 0),]             # get rid of some na in data
+data_omit["cases_adj"] <- data_omit$cases/data_omit$pop_size       # new Y predictor as cases/pop size
+data.full <- data_omit
+
+# obtain training/validation data split
+set.seed(10)
+n.s <- nrow(data_omit) ## number of cases in data.s (366)
+index.s <- sample(1: n.s, size=n.s/2, replace=FALSE)
+data.t <- data_omit[index.s,] ## get the training data set.
+data.v <- data_omit[-index.s,] ## the remaining cases form the validation set.
+```
+
+# fit a simple model with all variables
+```{r}
+log_model = lm(log(cases) ~ factor(state) + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + X._democrat + pop_density, data = data.t)
+summary(log_model)
+plot(log_model)
+```
+
+# forward stepwise based on AIC for first order model
+```{r}
+
+none_mod = lm(log(cases) ~ 1, data=data.t) ##model with only intercept
+full_mod = lm(log(cases) ~ mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + X._democrat + pop_density, data = data.t)     ##first order model with all predictors 
+
+
+model_fs1 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="both", k=2, trace = FALSE)
+summary(model_fs1)
+```
+
+```{r}
+anova(model_fs1)
+```
+
+```{r}
+# coefficient of multiple determination
+r2 <- function(model_fs1){
+  var_names <- c(model_fs1$anova$Step, "residuals")
+  
+  residual_sse <- model_fs1$anova$`Resid. Dev`[length(model_fs1$anova$`Resid. Dev`)]
+  var_sse <- c(model_fs1$anova$Deviance, residual_sse)
+  total_sse <- sum(var_sse,  na.rm = T)
+  
+  partial_r2 <- var_sse/total_sse 
+  r2 <- cbind(var_names, partial_r2)
+return(r2[2:nrow(r2),])
+}
+```
+
+```{r}
+r2(model_fs1)
+```
+
+```{r}
+get_coor(14,15, data)
+```
+
+# what if i dont use % rural?
+```{r}
+#forward stepwise based on AIC
+none_mod = lm(log(cases) ~ 1, data=data.t) ##model with only intercept
+full_mod = lm(log(cases) ~ mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + life_expectancy + sim_diversity_index + X._democrat + pop_density, data = data.t)     ##first order model with all predictors 
+
+model_test <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="both", k=2, trace = FALSE)
+summary(model_test)
+
+r2(model_test)
+```
+
+
+
+# forward stepwise based on AIC on cases adjusted by population
+```{r}
+
+
+hist(data_omit$cases_adj)
+hist(log(data_omit$cases_adj))    # doesn't look much normal
+hist(sqrt(data_omit$cases_adj))
+
+```
+
+
+
+```{r}
+
+none_mod = lm(sqrt(cases_adj) ~ 1, data=data.t) ##model with only intercept
+full_mod = lm(sqrt(cases_adj) ~ mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + X._democrat + pop_density, data = data.t)     ##first order model with all predictors 
+
+model_fs2 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="both", k=2, trace = FALSE)
+summary(model_fs2)
+```
+
+```{r}
+r2(model_fs2)
+```
+
+# try second order models...
+```{r}
+#forward stepwise based on AIC
+none_mod = lm(sqrt(cases_adj) ~ 1, data=data.t) ##model with only intercept
+full_mod = lm(sqrt(cases_adj) ~ (mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + X._democrat + pop_density)^2, data = data.t)     ##2nd order model with all predictors 
+
+model_full_2order <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="both", k=2, trace = FALSE)
+# summary(model_full_2order)
+```
+
+# s
+```{r}
+# anova(model_full_2order)
+# r2(model_full_2order)
+```
+
+
+# stepwise AIC limited only forwards with 10 steps
+```{r}
+# model_fs4 <- lm(sqrt(cases_adj) ~ mask_score + sim_diversity_index + X._rural + uninsured + X._democrat + unemploy_rate + median_income + 
+#    mask_score:uninsured + 
+#    X._democrat:unemploy_rate + X._rural:unemploy_rate + 
+#    sim_diversity_index:unemploy_rate + mask_score:X._rural + 
+#    mask_score:X._democrat + unemploy_rate:median_income + 
+#    uninsured:median_income + X._democrat:ratio_pop_to_physician, data = data.t)
+
+model_AIC_2order_10 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 10)
+
+# summary((model_AIC_2order_10))
+# anova(model_AIC_2order_10)
+
+```
+
+```{r}
+# coefficient of multiple determination for normal model...
+r2_normal <- function(model){
+  test <- anova(model)
+  sse <- test[,2]
+  names <- rownames(test)
+  total_sse <- sum(sse)
+  output <- cbind(names,sse/total_sse)
+  colnames(output) <- c("variables", "r2")
+return(output)
+}
+```
+
+```{r}
+# r2_normal(model_AIC_2order_10)
+```
+
+
+
+
+
+
+
+
+```{r}
+# model validation to check model bias and variance
+
+compare <- function(train_model, valid_model, which_stat){
+  # compare coefficients
+  mod_sum = cbind(coef(summary(train_model))[,1], coef(summary(valid_model))[,1],
+  coef(summary(train_model))[,2], coef(summary(valid_model))[,2])
+  colnames(mod_sum) = c("Train Est","Valid Est","Train s.e.","Valid s.e.")
+  
+  # compare SSE, R2
+  sse_t = sum(train_model$residuals^2)
+  sse_v = sum(valid_model$residuals^2)
+  Radj_t = summary(train_model)$adj.r.squared
+  Radj_v = summary(valid_model)$adj.r.squared
+  train_sum = c(sse_t,Radj_t)
+  valid_sum = c(sse_v,Radj_v)
+  criteria = rbind(train_sum,valid_sum)
+  colnames(criteria) = c("SSE","R2_adj")
+  
+  if(which_stat == "coeff"){
+    return(mod_sum)
+  } else if (which_stat == "criteria"){
+    return(criteria)
+  } else{
+      print("cannot recognize which stat output")
+  }
+}
+```
+
+```{r}
+model_var_AIC_2order_10 <- eval(model_AIC_2order_10$call[[2]])    # this is the model with 10 predictors
+
+train1 = lm(model_var_AIC_2order_10, data = data.t)
+valid1 = lm(model_var_AIC_2order_10, data = data.v)
+
+compare(train1, valid1, "coeff")
+compare(train1, valid1, "criteria")
+```
+
+```{r}
+# compare magniture change in coefficients
+coeff1 <- compare(train1, valid1, "coeff")
+(coeff1[,1] - coeff1[,2])/coeff1[,1]*100
+```
+
+
+* the coefficients don't seem to change signs and the estimators are similar (at most ~60% change in magnitude).
+
+
+```{r}
+# fs1 model stats function
+
+get_model_stats <- function(cand_model, full_model, data.t, data.v){
+
+  
+  adj_r2_train <- summary(cand_model)$adj.r.squared
+  
+  
+  n <- nrow(data.t)
+  sse_fs1 <- anova(cand_model)["Residuals", 2]     #SSE
+  mse_fs1 <- anova(cand_model)["Residuals", 3]     #MSE
+  mse_full <- anova(full_model)["Residuals", 3] #MSE  for full model
+  
+  p_fs1 <- length(cand_model$coefficients)          #number of coefficients
+  Cp_fs1 <- sse_fs1/mse_full - (n - 2*p_fs1)
+  
+  aic_fs1 <- n*log(sse_fs1/n) + 2*p_fs1
+  
+  e.fs1=cand_model$residuals                   # residuals
+  h.fs1=influence(cand_model)$hat                 # diagonals of hat matrix
+  press.fs1= sum(e.fs1^2/(1-h.fs1)^2)            # calculate pressP
+  
+  
+  #Get MSPE_v from new data for model 1
+  newdata = data.v[, 1:26]
+  y.hat = predict(cand_model, newdata)
+    
+  MSPE = mean((data.v$cases_adj- y.hat)^2)
+  sse_t = sum(cand_model$residuals^2)
+  
+  output <- c(Cp_fs1, p_fs1, aic_fs1, press.fs1, adj_r2_train, MSPE, sse_t/nrow(data.t), press.fs1/nrow(data.t))
+
+return(output)
+}
+```
+
+```{r}
+a <- get_model_stats(model_AIC_2order_10, model_full_2order, data.t, data.v)
+```
+
+```{r}
+# train models with more variables...
+model_AIC_2order_3 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 3)
+model_AIC_2order_5 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 5)
+model_AIC_2order_7 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 7)
+model_AIC_2order_15 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 15)
+model_AIC_2order_20 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 20)
+model_AIC_2order_25 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 25)
+model_AIC_2order_30 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 30)
+```
+
+
+```{r}
+b <- get_model_stats(model_AIC_2order_15, model_full_2order, data.t, data.v)
+c <- get_model_stats(model_AIC_2order_20, model_full_2order, data.t, data.v)
+d <- get_model_stats(model_AIC_2order_25, model_full_2order, data.t, data.v)
+e <- get_model_stats(model_AIC_2order_30, model_full_2order, data.t, data.v)
+f <- get_model_stats(model_full_2order, model_full_2order, data.t, data.v)
+
+x <- get_model_stats(model_AIC_2order_3, model_full_2order, data.t, data.v)
+y <- get_model_stats(model_AIC_2order_5, model_full_2order, data.t, data.v)
+z <- get_model_stats(model_AIC_2order_7, model_full_2order, data.t, data.v)
+```
+
+```{r}
+compare_models <- rbind(x,y,z,a,b,c,d,e,f)
+rownames(compare_models) <- c("3 var","5 var","7 var","10 var","15 var","20 var","25 var","30 var","full model")
+colnames(compare_models) <- c("Cp", "p", "aic", "pressP", "adj_r2", "MSPE", "sse/n", "pressP/n")
+compare_models
+```
+
+# retrain model using all observations
+```{r}
+model_var_AIC_2order_10 <- eval(model_AIC_2order_10$call[[2]])    # this is the model with 10 predictors
+
+model_AIC_2order_10_all = lm(model_var_AIC_2order_10, data = data.full)
+```
+
+
+
+
+# test for model assumptions
+```{r}
+plot(model_AIC_2order_10_all, which = 1)
+plot(model_AIC_2order_10_all, which = 2)
+```
+# not bad for both equal variance. normality assumption may have an issue...
+
+
+# any outliers?
+```{r}
+n <- nrow(data.t)
+p <- length(model_AIC_2order_10_all$coefficients)          #number of coefficients
+
+plot(model_AIC_2order_10_all, which = 4)
+abline(h=4/(n-p), col = "red")
+
+```
+
+# we briefly examine effects of taking out observation 1406 and 173
+```{r}
+fin_mod_exclude <- lm(model_var_AIC_2order_10, data=data.full, subset=setdiff(rownames(data.full), c("173", "1406")))
+plot(fin_mod_exclude, which = 4)
+```
+
+* note that points 173 and 1406 are gone...
+
+```{r}
+a <- model_AIC_2order_10_all$fitted.value
+b <- predict(fin_mod_exclude, data.full)
+
+plot(a, b, xlab="fitted values using all cases", ylab="fitted values without using case 173 and 1406") ## compare fitted values
+abline(0,1)
+
+
+mean(abs(a-b)/a*100)
+```
+
+* there is approx a 0.19% change to the magnitude of the fitted values after excluding the points... not much difference 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
