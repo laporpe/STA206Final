@@ -101,7 +101,20 @@ summary(diversity_as_indv)
 #remove states (it is not really relevant-- see discussion)
 diversity_as_indv_nostate <- lm(log_deaths_pop_omit ~  mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy+  non_hispanic_african_american + american_indian + asian + native_hawaiian + hispanic + non_hispanic_white, data = deaths_omit_0)
 
+# coefficient of multiple determination for normal model...
+r2_normal <- function(model){
+  test <- anova(model)
+  sse <- test[,2]
+  names <- rownames(test)
+  total_sse <- sum(sse)
+  output <- cbind(names,sse/total_sse)
+  colnames(output) <- c("variables", "r2")
+return(output)
+}
 summary(diversity_as_indv_nostate)
+r2_normal(diversity_as_indv_nostate)
+
+
 #printing a table with this model
 #print(xtable(as.data.frame(diversity_as_indv_nostate$coefficients), type = "latex"))
 ```
