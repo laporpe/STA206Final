@@ -12,49 +12,276 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(leaps)
 library(MASS)
+library(ggplot2)
+require(caTools)
 ```
 
 # Data Summarizing
+- First, in order to better understand the data prior to attempting to construct a linear model summary statistics are generated in addtion to characterizing the data type present in each of the columns. In order to accomplish this we will create some summary statistics and graphs along with commentary of notable features of the data.  
 
 
-## FEawfeaef
-- kjf
-- kj
-*ddkjf*
+## Pairwise Scatter Plots
+- Overall our data has many 27 columns, right away for our pairwise scatter plot we will not consider X, X.1, fips, county, and state in our summary statistics as X and X.1 were data left over indexes from merging columns fips is a unique value for each row that was used when merging and state is a categorical or qualititative variable that will be explored more with models.
 ```{r}
 data = read.csv('covid-project-raw-data/full_data_no_na.csv')
 summary(data)
 head(data)
+drops = c('X', 'X.1','fips', 'county', 'state')
+plot(data[ , !(names(data) %in% drops)][1:10])
+colnames(data[ , !(names(data) %in% drops)])
+plot(data[ , !(names(data) %in% drops)][11:22])
+summary(data[ , !(names(data) %in% drops)][1:22])
+#testing
+```
+- In addition to get a clear send of the distribution of our data a boxplot is created for all of the quantitative variables. 
+```{r}
+library(reshape2)
+drops = c('X', 'X.1', 'county', 'state')
+
+df.m <- melt(data[ , !(names(data) %in% drops)], id.var = "fips")
+
+p <- ggplot(data = df.m, aes(x=variable, y=value)) + 
+             geom_boxplot(aes(fill=fips))
+p + facet_wrap( ~ variable, scales="free")
 ```
 
-
-
-
-
+## Qualitative/Quantitative variables summary in our data
 ```{r}
 sapply(data, class)
 ```
 
 
+
+# Model Building
+### Basic model
+- To begin getting an understanding for the entries in our dataset with relation to building a linear model, a simple mode with all factors from the data included is constructed. 
+
 ```{r}
-basic_model = lm(cases ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy + pop_density, data = data)
+basic_model = lm(cases ~ state + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + life_expectancy + pop_density + non_hispanic_african_american + american_indian + asian + native_hawaiian + hispanic + non_hispanic_white, data = data)
 summary(basic_model)
-library(MASS)
-boxcox(basic_model)
+par(mfrow = c(2,2))
 plot(basic_model)
+boxcox(basic_model)
 hist(data$cases, breaks = 200)
 hist(log(data$cases), breaks = 200)
 ```
 
+- Analysis for this portion is included in the appendix 2, which shows that the basic model is very poor which is further revealed by the fact that the Normal Q-Q plot is very poor and many points surpass Cook's distance. This basic model was followed up with a boxcox plot which "computes and optionally plots profile log-likelihoods for the parameter of the Box-Cox power transformation". The boxcox call in R suggests that a log transformation of the variable `cases` is needed. The same basic model with the transformed cases response variable was then computed to understand the improvements to the model. 
+
+```{r}
+log_model = lm(log(cases) ~  state + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + life_expectancy + pop_density + non_hispanic_african_american + american_indian + asian + native_hawaiian + hispanic + non_hispanic_white, data = data)
+summary(log_model)
+par(mfrow = c(2,2))
+plot(log_model)
+```
+- The log transformation of our response variable, cases, produces a much better Normal Q-Q but it is still very heavy tailed on the negative side of the standardized residuals as seen in the code and output in appendix 2. Though, the model has shown improvement with these steps we see one of the main predictors in the model appears to be population size or `pop_size` which is not very informative in the final model that would be useful in constructing. Therefore, it is reasonable to consider normalizing the total cases based on population size. 
+
+
+### Building a simple model with cases normalized by population size.
 
 
 ```{r}
-log_model = lm(log(cases) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy + pop_density, data = data)
-summary(log_model)
-plot(log_model)
+data_norm = data
+data_norm$cases_norm = data_norm$cases/data_norm$pop_size
+norm_model = lm(cases_norm ~ state + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + life_expectancy + pop_density + non_hispanic_african_american + american_indian + asian + native_hawaiian + hispanic + non_hispanic_white, data = data_norm)
+
+
+
+summary(norm_model)
+boxcox(norm_model)
+par(mfrow = c(2,2))
+plot(norm_model)
+hist(data_norm$cases_norm, breaks = 200)
+hist(sqrt(data_norm$cases_norm), breaks = 200)
+
+```
+
+- After normalizing for population size the BoxCox plot to see if a transformation should be done to the response variable, covid cases. The results now suggests to perform a square root transformation of the response variable covid cases as a $$\lambda$$ of 0.5 was obtained. 
+
+
+### Creating a simple model based on the sqrt(cases_norm) as the predictor variable. 
+- 
+```{r}
+sqrt_norm_model = lm(sqrt(cases_norm) ~  state + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + area + X._democrat + sim_diversity_index + life_expectancy + pop_density + non_hispanic_african_american + american_indian + asian + native_hawaiian + hispanic + non_hispanic_white, data = data_norm)
+summary(sqrt_norm_model)
+par(mfrow = c(2,2))
+plot(sqrt_norm_model)
+
+```
+- After transforming the covid cased normalized by population size the model Q-Q plot is not great...... Now that basic model exploration has been conducted more advanced selection techniques will be use such as regsubsets in R as well as stepAIC. Regsubsets was performed using nvmax=10 and nbest=6 represent the maximum size of subsets to be examined and the number of subsets of each size to record, respectively. Regsubsets was performed using forward and backward stepwise search since the exhaustive search with second order interactions was deemed slow by the leaps library in R. (CITATION)
+
+### Using Regsubsets 
+
+```{r}
+?regsubsets
+sub_set = regsubsets(sqrt(cases_norm) ~ (mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + life_expectancy + pop_density + non_hispanic_african_american + american_indian + asian + native_hawaiian + hispanic + non_hispanic_white)^2, data=data_norm, nvmax=10, nbest=6, method='forward')
+res.sum <- summary(sub_set)
+
+
+summary(res.sum,all.best=TRUE,matrix=T,matrix.logical=F,df=NULL)
+#max(res.sum$adjr2)
+#res.sum$outmat[60,]
+res.sum$rsq[60]
+res.sum$bic[60]
+res.sum$adjr2[60]
+res.sum$cp[60]
+
+
+labels(which(res.sum$outmat[60,]=='*'))
 ```
 
 
+
+```{r}
+sub_set = regsubsets(sqrt(cases_norm) ~ (mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + life_expectancy + pop_density + non_hispanic_african_american + american_indian + asian + native_hawaiian + hispanic + non_hispanic_white)^2, data=data_norm, nvmax=10, nbest=6, method='backward')
+res.sum <- summary(sub_set)
+
+
+summary(res.sum,all.best=TRUE,matrix=T,matrix.logical=F,df=NULL)
+#max(res.sum$adjr2)
+#res.sum$outmat[60,]
+res.sum$rsq[58]
+res.sum$bic[58]
+res.sum$adjr2[58]
+res.sum$cp[58]
+
+
+labels(which(res.sum$outmat[58,]=='*'))
+```
+
+- Comparing the results from forward and backwards stepwise selection the model produced by the forward selection produces preferable statistics with regards to AIC and $$R^2_a$$ as seen in the results supplied in appendix 2. 
+
+
+```{r}
+#final_model = lm(sqrt(cases_norm) ~ mask_score:unemploy_rate + mask_score + mask_score:median_income + unemploy_rate:non_hispanic_white + X._rural:X._democrat, data = data_norm)
+final_model = lm(sqrt(cases_norm) ~ mask_score + unemploy_rate:X._rural + uninsured:non_hispanic_white + area:american_indian + mask_score:unemploy_rate + unemploy_rate:X._democrat + median_income:X._rural + ratio_pop_to_physician:asian + unemploy_rate:non_hispanic_white + X._rural:area, data = data_norm)
+
+summary(final_model)
+par(mfrow = c(2,2))
+plot(final_model)
+final_model$coefficients
+```
+
+# Model Diagnostics
+```{r}
+# fs1 model stats function
+
+get_model_stats <- function(cand_model, full_model, data.t, data.v){
+
+  
+  adj_r2_train <- summary(cand_model)$adj.r.squared
+  
+  
+  n <- nrow(data.t)
+  sse_fs1 <- anova(cand_model)["Residuals", 2]     #SSE
+  mse_fs1 <- anova(cand_model)["Residuals", 3]     #MSE
+  mse_full <- anova(full_model)["Residuals", 3] #MSE  for full model
+  
+  p_fs1 <- length(cand_model$coefficients)          #number of coefficients
+  Cp_fs1 <- sse_fs1/mse_full - (n - 2*p_fs1)
+  
+  aic_fs1 <- n*log(sse_fs1/n) + 2*p_fs1
+  
+  e.fs1=cand_model$residuals                   # residuals
+  h.fs1=influence(cand_model)$hat                 # diagonals of hat matrix
+  press.fs1= sum(e.fs1^2/(1-h.fs1)^2)            # calculate pressP
+  
+  
+  #Get MSPE_v from new data for model 1
+  newdata = data.v[, 1:26]
+  y.hat = predict(cand_model, newdata)
+    
+  MSPE = mean((data.v$cases_adj- y.hat)^2)
+  sse_t = sum(cand_model$residuals^2)
+  
+  output <- c(Cp_fs1, p_fs1, aic_fs1, press.fs1, adj_r2_train, MSPE, sse_t/nrow(data.t), press.fs1/nrow(data.t))
+
+return(output)
+}
+```
+
+
+
+
+```{r}
+# train models with more variables...
+set.seed(10)
+sample = sample.split(data_norm,SplitRatio = 0.5)
+data.t = subset(data_norm,sample ==TRUE)
+data.v = subset(data_norm,sample ==FALSE)
+none_mod = lm(sqrt(cases_norm)~1, data=data.t)
+model_full_2order = lm(sqrt(cases_norm)~(mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + pop_size + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + life_expectancy + non_hispanic_african_american + american_indian + asian + native_hawaiian + hispanic + non_hispanic_white)^2, data=data.v)
+
+
+model_AIC_2order_3 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 3)
+model_AIC_2order_5 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 5)
+model_AIC_2order_7 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 7)
+model_AIC_2order_10 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 10)
+model_AIC_2order_15 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 15)
+model_AIC_2order_20 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 20)
+model_AIC_2order_25 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 25)
+model_AIC_2order_30 <- stepAIC(none_mod, scope=list(upper=full_mod, lower = ~1), direction="forward", k=2, trace = FALSE, steps = 30)
+```
+
+```{r}
+a <- get_model_stats(model_AIC_2order_10, model_full_2order, data.t, data.v)
+b <- get_model_stats(model_AIC_2order_15, model_full_2order, data.t, data.v)
+c <- get_model_stats(model_AIC_2order_20, model_full_2order, data.t, data.v)
+d <- get_model_stats(model_AIC_2order_25, model_full_2order, data.t, data.v)
+e <- get_model_stats(model_AIC_2order_30, model_full_2order, data.t, data.v)
+f <- get_model_stats(model_full_2order, model_full_2order, data.t, data.v)
+
+x <- get_model_stats(model_AIC_2order_3, model_full_2order, data.t, data.v)
+y <- get_model_stats(model_AIC_2order_5, model_full_2order, data.t, data.v)
+z <- get_model_stats(model_AIC_2order_7, model_full_2order, data.t, data.v)
+
+r <- get_model_stats(final_model, model_full_2order, data.t, data.v)
+```
+
+```{r}
+compare_models <- rbind(x,y,z,a,b,c,d,e,f,r)
+rownames(compare_models) <- c("3 var","5 var","7 var","10 var","15 var","20 var","25 var","30 var","full model","regsubsetsmodel")
+colnames(compare_models) <- c("Cp", "p", "aic", "pressP", "adj_r2", "MSPE", "sse/n", "pressP/n")
+compare_models
+```
+
+
+
+# Model Outliers 
+Obtain the studentized deleted residuals and identify any outlying Y observations. Use the Bonferroni outlier test procedure at α = 0.05.
+```{r}
+
+e=final_model$residuals ##ordinary residuals 
+h=influence(final_model)$hat ##diagonals of the hat matrix: a.k.a. leverage values 
+de=e/(1-h) ##deleted residuals 
+plot(e,de, xlab="residuals", ylab="deleted residuals")
+abline(0,1)
+summary(h)
+```
+
+```{r}
+n=length(data.t)
+p=11
+rsd.lm=round(rstudent(final_model), 3)
+result = ifelse(rsd.lm > qt(1-0.95/2/n,n-p-1), TRUE, FALSE)
+table(result)
+names(which(result))
+```
+- outliers are 37 195 305 321
+
+```{r}
+par(mfrow = c(2,2))
+plot(final_model)
+```
+
+- So we see we have outliers present, especially on one tail of the data. Since we are using the training dataset it could be a bad idea to remove outliers as it will not represent the data as a whole...
+
+
+# Model Validation?
+```{r}
+data_norm$sqrt_cases_norm = sqrt(data_norm$cases_norm)
+plot(data_norm)
+```
 
 ```{r}
 colnames(data)
@@ -62,56 +289,16 @@ for (i in colnames(data)){
   print(i)
   print(summary(eval(call('$', data, i))))
 }
-
 ```
+
+
 
 
 ```{r}
 data["203",]
 data["2616",]
 data["608",]
-
 ```
-
-
-
-
-
-```{r}
-data_norm = data
-data_norm$cases_norm = data_norm$cases/data_norm$pop_size
-norm_model = lm(cases_norm ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income +  X._rural + life_expectancy + sim_diversity_index+ area + X._democrat + sim_diversity_index + life_expectancy + pop_density, data = data_norm)
-
-
-
-summary(norm_model)
-boxcox(norm_model)
-plot(norm_model)
-hist(data_norm$cases_norm, breaks = 200)
-hist(sqrt(data_norm$cases_norm), breaks = 200)
-
-```
-
-
-```{r}
-sqrt_norm_model = lm(sqrt(cases_norm) ~ mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy + pop_density, data = data_norm)
-summary(sqrt_norm_model)
-plot(sqrt_norm_model)
-
-```
-```{r}
-sub_set = regsubsets(sqrt(cases_norm) ~ (mask_score + mask_score + ratio_pop_to_physician + unemploy_rate + HS_grad_rate + flu_vacc_. + uninsured + median_income + X._rural + life_expectancy + sim_diversity_index + area + X._democrat + sim_diversity_index + life_expectancy + pop_density)^2, data=data_norm, nvmax=20, nbest=10, method='forward')
-res.sum <- summary(sub_set)
-summary(res.sum,all.best=TRUE,matrix=T,matrix.logical=F,df=NULL)
-max(res.sum$adjr2)
-res.sum$outmat[200,]
-
-#res.sum
-```
-
-
-
-
 
 
 
